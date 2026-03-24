@@ -1,0 +1,252 @@
+analyze_repository:
+  description: >
+    Analyze the GitHub repository to understand its codebase before working on: {user_idea}
+
+    Follow these steps in order:
+    1. Use CloneRepoTool with this exact URL: {repo_url}
+    2. Use DirectoryReadTool on the returned path to explore the full project structure
+    3. Find and read the dependency manifest — look for: package.json, requirements.txt,
+       go.mod, Cargo.toml, pyproject.toml (read whichever exists)
+    4. Read 2-3 representative source files to understand coding patterns and conventions
+    5. Read README.md if it exists
+
+    Do NOT skip any step. Your output will be the context for all subsequent agents.
+  expected_output: >
+    A repository context report containing:
+    1. Tech stack — language, framework, database, key libraries (from actual files, not guessed)
+    2. Project structure overview — key directories and their purpose
+    3. Existing functionality relevant to the task: "{user_idea}"
+    4. Coding conventions and patterns observed in the source files
+    5. Recommended test command (e.g. "pytest", "npm test", "dotnet test", "go test ./...")
+  agent: architect
+
+create_user_stories:
+  description: >
+    Transform the following user idea into detailed User Stories with Acceptance Criteria.
+
+    User idea: {user_idea}
+
+    Requirements:
+    - Create 3-5 User Stories covering the core functionality
+    - Each story must have clear Acceptance Criteria (3-5 criteria per story)
+    - Identify and document any assumptions you are making
+    - Flag any ambiguities that need clarification
+  expected_output: >
+    A structured document with:
+    1. Brief summary of the feature (2-3 sentences)
+    2. List of User Stories, each with:
+       - Story ID (US-001, US-002, etc.)
+       - Story text: "As a [user], I want [goal], so that [benefit]"
+       - Acceptance Criteria (numbered list)
+    3. Assumptions and open questions
+  agent: product_owner
+
+create_github_issue:
+  description: >
+    Create a GitHub Issue for the feature that needs to be implemented.
+
+    Repository URL: {repo_url}
+    Compose the issue title using this exact format:
+      [Type]: [Component/Service] — [Action starting with an infinitive verb]
+
+    Where:
+    - Type is one of: Feat, Fix, Refactor, Docs, Chore
+      * Feat     — new feature or functionality
+      * Fix      — bug fix
+      * Refactor — code cleanup, no behaviour change
+      * Docs     — documentation only
+      * Chore    — CI/CD, migrations, tooling
+    - Component is the name of the affected service or module (e.g. Identity, Billing, API)
+      Infer it from the User Stories and repository context.
+    - Action starts with an infinitive verb (e.g. "Add", "Fix", "Implement", "Extract")
+
+    Examples:
+      Feat: Identity — Add user registration and login
+      Fix: Billing — Fix invoice total rounding error
+      Refactor: API — Extract pagination logic into middleware
+
+    Use the User Stories from the previous task as the issue body.
+    Use CreateIssueTool with this format:
+    '{repo_url}|||[composed title]|||[full User Stories content]'
+  expected_output: >
+    The composed issue title and the result from CreateIssueTool.
+    Example: "Issue #42 created: https://github.com/..."
+  agent: product_owner
+
+design_architecture:
+  description: >
+    Tech stack constraint: {tech_stack_hint}
+    If tech_stack_hint is not empty, you MUST use exactly that stack — do not substitute or extend it.
+
+    Repository context (if provided, follow existing patterns and conventions): {repo_context}
+
+    Based on the User Stories provided, design the technical architecture for the feature.
+
+    Consider:
+    - Technology stack (respect the constraint above if set)
+    - Data models / database schema
+    - API endpoints (if applicable)
+    - Frontend components (if applicable)
+    - Folder/file structure
+    - Security considerations
+    - Performance considerations
+  expected_output: >
+    A concise technical specification for the developer. Use compact format — no prose
+    introductions, no justifications, no examples. Sections only:
+
+    ## Stack
+    One line: language, framework, key libraries.
+
+    ## Files to create or modify
+    For each file — absolute path pattern (e.g. src/services/AccountService.cs), action
+    (create/modify), and a bullet list of: class/function names, method signatures,
+    fields with types. Nothing else.
+
+    ## Data models
+    Field names and types only. No descriptions.
+
+    ## API endpoints
+    Method + path + request shape + response shape. One line per endpoint.
+
+    ## Constraints
+    Bullet list of rules the developer must follow (e.g. "do not store JWT in localStorage").
+
+    Total length: under 2000 words.
+  agent: architect
+
+implement_feature:
+  description: >
+    Implement the feature in the cloned repository located at: {clone_path}
+
+    Architecture specification (READ THIS CAREFULLY — implement exactly what is described here):
+    {architecture_spec}
+
+    Steps:
+    1. Use CreateBranchTool to create a feature branch:
+       Format: '{clone_path}|||feature/issue-{issue_number}-[short-kebab-slug]'
+    2. Study the architecture specification above — it lists every file to create or modify,
+       the exact folder paths, class names, method signatures, and data models.
+    3. Use FileWriterTool to write EACH file listed in the architecture spec to its correct
+       absolute path inside {clone_path}.
+       - Write complete, working code — not pseudocode or placeholders
+       - Use the exact file paths, namespaces, class names from the spec
+       - Follow the language and framework specified (do not substitute with a different stack)
+       - Include error handling and inline comments for non-obvious logic
+
+    Write ALL files required by the architecture. Do not skip any file.
+  expected_output: >
+    1. Branch name created (e.g. "feature/issue-42-user-auth")
+    2. List of all files written with their full absolute paths inside the repository
+    3. Brief note on any deviations from the architecture spec (if any)
+  agent: senior_developer
+
+fix_implementation:
+  description: >
+    The tests failed. Fix the code in the cloned repository at: {clone_path}
+
+    Test failure output:
+    {test_output}
+
+    Instructions:
+    - Read the failing test output carefully to identify what is broken
+    - Use FileReadTool to read the current content of files that need fixing
+    - Use FileWriteTool to write the corrected versions
+    - Only modify files directly related to the failures — do not rewrite unrelated code
+    - Do not change test files unless the tests themselves have a bug
+  expected_output: >
+    List of files modified with a brief description of each fix applied.
+  agent: senior_developer
+
+code_review:
+  description: >
+    Review the implementation in the cloned repository at: {clone_path}
+
+    The developer's implementation summary (includes the list of written files):
+    {implementation_summary}
+
+    Steps:
+    1. Use DirectoryReadTool on {clone_path} to see the full repository structure
+    2. Use FileReadTool to read each file listed in the implementation summary above
+       (use the full absolute paths as shown in the summary)
+
+    Check for the following issues:
+
+    Security:
+    - JWT or session tokens stored in localStorage or sessionStorage (must be httpOnly cookies)
+    - Hardcoded secrets, passwords, or API keys in source files
+    - SQL injection risk (raw string queries without parameterisation)
+    - Missing authentication/authorization checks on protected endpoints
+    - Sensitive data logged to console
+
+    Architecture compliance:
+    - Does the implementation follow the architecture design?
+    - Are the correct layers used (e.g. business logic not in route handlers)?
+    - Are there any circular dependencies or god objects?
+
+    Code quality:
+    - Unhandled errors or silent catches
+    - Dead code or debug artifacts left in
+
+    Respond with EXACTLY one of these two formats:
+    1. APPROVED
+       (no other text needed)
+    2. CHANGES_REQUESTED
+       - [issue 1: file path, line reference if possible, what is wrong and how to fix it]
+       - [issue 2: ...]
+       (list every issue found)
+  expected_output: >
+    Either "APPROVED" (single word, no other text) or
+    "CHANGES_REQUESTED" followed by a bullet list of specific issues with file references.
+  agent: architect
+
+create_test_files:
+  description: >
+    Write test files into the cloned repository at: {clone_path}
+
+    Write actual test code (not a test plan document) that:
+    - Verifies each Acceptance Criterion from the User Stories
+    - Covers happy paths, edge cases, and error scenarios
+    - Follows the testing framework and conventions already used in the codebase
+    - Is runnable with: {test_command}
+
+    Use FileWriteTool to write each test file to the correct path inside {clone_path}
+  expected_output: >
+    List of test files written with their full paths.
+  agent: qa_engineer
+
+create_pull_request:
+  description: >
+    The tests have passed. Commit all changes and open a Pull Request.
+
+    Clone path: {clone_path}
+    Repository URL: {repo_url}
+    Issue number: {issue_number}
+    Branch name: {branch_name}
+
+    Steps:
+    1. Use CommitAndPushTool:
+       '{clone_path}|||feat: implement feature (closes #{issue_number})'
+    2. Use CreatePRTool:
+       '{repo_url}|||{branch_name}|||[descriptive PR title]|||Closes #{issue_number}\n\n[brief summary of changes]'
+  expected_output: >
+    Pull Request URL.
+  agent: architect
+
+create_test_plan:
+  description: >
+    Review the implementation and create a comprehensive test plan that verifies
+    all User Story Acceptance Criteria are met.
+
+    Cover:
+    - Unit tests for core business logic
+    - Integration tests for API endpoints
+    - Edge cases and error scenarios
+    - Manual testing checklist for UI (if applicable)
+  expected_output: >
+    Complete test plan including:
+    1. Unit test code for critical functions
+    2. Integration test scenarios (with example requests/responses)
+    3. Edge cases and negative test cases
+    4. Manual QA checklist mapped to each Acceptance Criterion
+    5. Summary: what is tested, what is out of scope, and why
+  agent: qa_engineer

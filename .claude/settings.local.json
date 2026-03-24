@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(uv --version)",
+      "Bash(pip install:*)",
+      "Bash(python -m uv --version)",
+      "Bash(crewai create:*)"
+    ]
+  }
+}
